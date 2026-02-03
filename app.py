@@ -1,217 +1,230 @@
 import streamlit as st
 import random
-import time
+import pandas as pd
+from datetime import datetime
 
 # ================= 配置网页 =================
-st.set_page_config(
-    page_title="卷卷·换号抽签器",
-    page_icon="⚔️",
-    layout="centered"
-)
+st.set_page_config(page_title="25人本·全自动发号机", page_icon="⚔️", layout="wide")
 
-# ================= 1. 数据中心 (在这里修改号池) =================
-# 格式： "心法名": ["账号A", "账号B"]
-ACCOUNT_POOL = {
-    "紫霞功(气纯)": ["道长01", "备胎气纯"],
-    "太虚剑意(剑纯)": [],
-    "冰心诀": ["秀姐A"],
-    "离经易道(奶花)": ["花哥", "花萝"],
-    "易筋经(和尚)": ["大师"],
-    "铁牢律(T)": ["天策T"],
-    # ... 你可以在这里继续添加，没写的默认是空列表
-}
+# ================= 1. 核心数据与全局状态 =================
+# 这里使用了 st.cache_resource 来模拟一个“全局数据库”
+# 只要服务器不重启，所有人的数据都会存在这里
 
-# 剑三全门派数据
-JX3_DATA = {
-    "纯阳": [{"n": "紫霞功(气纯)", "r": "D"}, {"n": "太虚剑意(剑纯)", "r": "D"}],
-    "万花": [{"n": "花间游", "r": "D"}, {"n": "离经易道(奶花)", "r": "奶"}],
-    "少林": [{"n": "易筋经(和尚)", "r": "D"}, {"n": "洗髓经(T)", "r": "T"}],
-    "七秀": [{"n": "冰心诀", "r": "D"}, {"n": "云裳心经(奶秀)", "r": "奶"}],
-    "天策": [{"n": "傲血战意", "r": "D"}, {"n": "铁牢律(T)", "r": "T"}],
-    "藏剑": [{"n": "问水/山居(藏剑)", "r": "D"}],
-    "五毒": [{"n": "毒经", "r": "D"}, {"n": "补天诀(奶毒)", "r": "奶"}],
-    "唐门": [{"n": "惊羽诀", "r": "D"}, {"n": "天罗诡道(田螺)", "r": "D"}],
-    "明教": [{"n": "焚影圣诀", "r": "D"}, {"n": "明尊琉璃体(T)", "r": "T"}],
-    "丐帮": [{"n": "笑尘诀", "r": "D"}],
-    "苍云": [{"n": "分山劲", "r": "D"}, {"n": "铁骨衣(T)", "r": "T"}],
-    "长歌": [{"n": "莫问", "r": "D"}, {"n": "相知(奶歌)", "r": "奶"}],
-    "霸刀": [{"n": "北傲诀", "r": "D"}],
-    "蓬莱": [{"n": "凌海诀", "r": "D"}],
-    "凌雪": [{"n": "隐龙诀", "r": "D"}],
-    "衍天": [{"n": "太玄经", "r": "D"}],
-    "药宗": [{"n": "无方", "r": "D"}, {"n": "灵素(奶药)", "r": "奶"}],
-    "刀宗": [{"n": "孤锋诀", "r": "D"}],
-    "万灵": [{"n": "山海心诀", "r": "D"}],
-    "流派": [{"n": "无相楼", "r": "D"}],
-    "段氏": [{"n": "周天诀", "r": "D"}]
-}
+@st.cache_resource
+class GameState:
+    def __init__(self):
+        # 预设号池：格式 {"心法": ["账号A", "账号B"]}
+        # 请在这里填入你所有的公用账号
+        self.ACCOUNT_POOL = {
+            "铁牢律(T)": ["策T-01", "策T-02", "策T-03"],
+            "洗髓经(T)": ["大师T-01", "大师T-02"],
+            "明尊琉璃体(T)": ["喵T-01", "喵T-02"],
+            "铁骨衣(T)": ["苍云T-01"],
+            
+            "离经易道(奶花)": ["花奶-01", "花奶-02"],
+            "云裳心经(奶秀)": ["秀奶-01", "秀奶-02"],
+            "补天诀(奶毒)": ["毒奶-01", "毒奶-02"],
+            "相知(奶歌)": ["歌奶-01"],
+            "灵素(奶药)": ["药奶-01"],
+            
+            "紫霞功(气纯)": ["气纯-01", "气纯-02", "气纯-03"],
+            "太虚剑意(剑纯)": ["剑纯-01"],
+            "花间游": ["花间-01", "花间-02"],
+            "易筋经(和尚)": ["秃秃-01"],
+            "冰心诀": ["冰心-01", "冰心-02", "冰心-03"],
+            "傲血战意": ["天策-01"],
+            "问水/山居(藏剑)": ["藏剑-01", "藏剑-02"],
+            "毒经": ["毒经-01"],
+            "惊羽诀": ["鲸鱼-01"],
+            "天罗诡道(田螺)": ["田螺-01", "田螺-02"],
+            "焚影圣诀": ["明教-01"],
+            "笑尘诀": ["丐帮-01"],
+            "分山劲": ["苍云-01"],
+            "莫问": ["莫问-01"],
+            "北傲诀": ["霸刀-01"],
+            "凌海诀": ["蓬莱-01"],
+            "隐龙诀": ["凌雪-01"],
+            "太玄经": ["衍天-01"],
+            "无方": ["药宗-01"],
+            "孤锋诀": ["刀宗-01"],
+            "山海心诀": ["万灵-01"],
+            "无相楼": ["流派-01"],
+            "周天诀": ["段氏-01"]
+        }
+        
+        # 目标配置
+        self.TARGET_CONFIG = {"T": 2, "N": 4, "DPS": 19}
+        
+        # 已使用账号记录 (防止重复发号) set()
+        self.used_accounts = set()
+        
+        # 玩家名单 (记录谁抽到了什么)
+        # 格式: [{"id": "玩家名", "role": "T", "xinfa": "铁牢", "account": "策T-01", "time": "..."}]
+        self.roster = []
 
-# ================= 2. 样式美化 (CSS) =================
-st.markdown("""
-<style>
-    .stButton>button {
-        width: 100%;
-        border-radius: 20px;
-        height: 3em;
-        background-color: #c8a063;
-        color: white;
-        font-weight: bold;
-    }
-    .result-box {
-        padding: 20px;
-        background-color: #fdf6e3;
-        border-left: 5px solid #d32f2f;
-        border-radius: 5px;
-        text-align: center;
-        font-size: 24px;
-        font-weight: bold;
-        color: #2c3e50;
-        margin-top: 20px;
-    }
-    .highlight { color: #d32f2f; }
-</style>
-""", unsafe_allow_html=True)
+    # --- 功能函数 ---
+    
+    def get_current_counts(self):
+        """统计当前各职责人数"""
+        counts = {"T": 0, "N": 0, "DPS": 0}
+        for p in self.roster:
+            counts[p['role']] += 1
+        return counts
 
-# ================= 3. 逻辑控制 =================
+    def draw_character(self, player_id, proficient_roles):
+        """
+        核心抽签逻辑
+        player_id: 玩家名字
+        proficient_roles: 玩家会玩的心法列表 ["铁牢律(T)", "紫霞功"]
+        """
+        # 1. 检查是否已经抽过了
+        for p in self.roster:
+            if p['id'] == player_id:
+                return False, f"你已经抽过号了！结果是：{p['xinfa']} - {p['account']}"
 
-# 初始化 Session State (用于记录状态)
-if 'agreed' not in st.session_state:
-    st.session_state.agreed = False
-if 'result' not in st.session_state:
-    st.session_state.result = None
+        # 2. 分析当前缺什么位置
+        current_counts = self.get_current_counts()
+        needed_roles = []
+        for role, limit in self.TARGET_CONFIG.items():
+            if current_counts[role] < limit:
+                needed_roles.append(role)
+        
+        if not needed_roles:
+            return False, "队伍已满员！(25/25)"
 
-# --- 界面：军令状 ---
-if not st.session_state.agreed:
-    st.title("📜 换号副本 · 军令状")
-    st.info("请全员阅读并确认规则：")
-    st.markdown("""
-    1. **坦诚相待**：绝不隐瞒所会心法，拒绝伪装萌新。
-    2. **号人合一**：确认参战后，人号必须同时到位。
-    3. **硬核手打**：全程 **禁用宏、武学助手**，坚持手打至通关。
-    """)
-    if st.button("我同意并画押"):
-        st.session_state.agreed = True
+        # 3. 筛选玩家能玩的心法
+        # 先给心法归类
+        valid_candidates = [] # [{"xinfa": "铁牢", "role": "T", "account": "策T-01"}]
+        
+        for xinfa in proficient_roles:
+            # 判断心法职责
+            role = "DPS" # 默认为DPS
+            if "(T)" in xinfa: role = "T"
+            elif "(奶" in xinfa: role = "N"
+            
+            # 如果这个职责队伍不需要了，跳过
+            if role not in needed_roles:
+                continue
+            
+            # 检查号池里这个心法还有没有号
+            accounts = self.ACCOUNT_POOL.get(xinfa, [])
+            available_accs = [acc for acc in accounts if acc not in self.used_accounts]
+            
+            # 把所有可用账号加入候选池
+            for acc in available_accs:
+                valid_candidates.append({"xinfa": xinfa, "role": role, "account": acc})
+
+        # 4. 进行抽签
+        if not valid_candidates:
+            # 失败原因分析
+            return False, f"匹配失败！可能原因：\n1. 你的心法对应的职责已满（当前需求：{needed_roles}）\n2. 你会玩的心法号池里没号了"
+        
+        # 随机选一个
+        choice = random.choice(valid_candidates)
+        
+        # 5. 锁定数据
+        self.used_accounts.add(choice['account'])
+        self.roster.append({
+            "id": player_id,
+            "role": choice['role'],
+            "xinfa": choice['xinfa'],
+            "account": choice['account'],
+            "time": datetime.now().strftime("%H:%M:%S")
+        })
+        
+        return True, choice
+
+    def reset_game(self):
+        """重置所有数据"""
+        self.used_accounts = set()
+        self.roster = []
+
+
+# 初始化全局状态
+game = GameState()
+
+# ================= 2. 界面显示 =================
+
+st.title("⚔️ 25人本 · 全自动发号中心")
+
+# --- 侧边栏：实时监控 ---
+with st.sidebar:
+    st.header("📊 团队监控")
+    counts = game.get_current_counts()
+    
+    # 进度条展示
+    st.write(f"🛡️ 坦克 ({counts['T']}/2)")
+    st.progress(min(counts['T']/2, 1.0))
+    
+    st.write(f"⚕️ 治疗 ({counts['N']}/4)")
+    st.progress(min(counts['N']/4, 1.0))
+    
+    st.write(f"⚔️ 输出 ({counts['DPS']}/19)")
+    st.progress(min(counts['DPS']/19, 1.0))
+    
+    st.divider()
+    
+    if st.button("⚠️ 管理员：重置所有数据"):
+        game.reset_game()
         st.rerun()
-
-# --- 界面：主抽签区 ---
-else:
-    st.title("🗡️ 卷卷 · 换号抽签器")
     
-    # 1. 输入ID
-    player_id = st.text_input("请输入你的游戏ID", placeholder="例如：卷卷")
+    st.info("提示：所有人无需刷新，点击按钮会自动同步最新状态。")
 
-    # 2. 侧边栏：设置与号池查看
-    with st.sidebar:
-        st.header("⚙️ 设置与号池")
-        only_account_mode = st.toggle("🔒 只抽有号模式", value=True, help="开启后，没有录入账号的心法不会被抽中")
-        
-        st.divider()
-        st.subheader("📊 当前号池公示")
-        # 遍历显示有号的心法
-        has_account_count = 0
-        for xf, accs in ACCOUNT_POOL.items():
-            if accs:
-                st.write(f"**{xf}**: {', '.join(accs)}")
-                has_account_count += 1
-        if has_account_count == 0:
-            st.warning("当前号池为空！请联系管理员(卷卷)在后台添加账号。")
+# --- 主区域：玩家操作 ---
+st.subheader("👤 玩家登记")
 
-    # 3. 排除选项 (使用多选框)
-    st.subheader("👇 排除你会玩的/不想抽的")
-    
-    # 提取所有心法列表
-    all_xinfas = []
-    for sect, xfs in JX3_DATA.items():
-        for x in xfs:
-            all_xinfas.append(x)
-            
-    # 快捷筛选辅助
-    col1, col2, col3 = st.columns(3)
-    filter_role = None
-    if col1.button("排除所有 T"): filter_role = "T"
-    if col2.button("排除所有 奶"): filter_role = "奶"
-    if col3.button("重置选项"): filter_role = "RESET"
+col1, col2 = st.columns([1, 2])
 
-    # 处理 Session State 中的排除列表
-    if 'excluded' not in st.session_state or filter_role == "RESET":
-        st.session_state.excluded = []
-    
-    if filter_role and filter_role != "RESET":
-        to_add = [x['n'] for x in all_xinfas if x['r'] == filter_role]
-        st.session_state.excluded = list(set(st.session_state.excluded + to_add))
+with col1:
+    player_name = st.text_input("输入你的ID", placeholder="例如：卷卷")
 
-    # 显示多选框
-    excluded_options = st.multiselect(
-        "选择要排除的心法:",
-        options=[x['n'] for x in all_xinfas],
-        default=st.session_state.excluded,
-        key='excluded_widget' # 绑定key以便同步
-    )
-    # 同步回 session state
-    st.session_state.excluded = excluded_options
+with col2:
+    # 获取所有心法选项
+    all_xinfas = list(game.ACCOUNT_POOL.keys())
+    selected_skills = st.multiselect("勾选你会玩的心法（号池里有的）", options=all_xinfas)
 
-    # 4. 抽签按钮逻辑
-    if st.button("🔥 开始抽签", type="primary"):
-        if not player_id:
-            st.error("请先输入游戏ID！")
+draw_btn = st.button("🎲 开始匹配", type="primary", use_container_width=True)
+
+# 处理抽签逻辑
+if draw_btn:
+    if not player_name:
+        st.toast("❌ 请先输入ID！")
+    elif not selected_skills:
+        st.toast("❌ 请至少选择一个心法！")
+    else:
+        success, result = game.draw_character(player_name, selected_skills)
+        if success:
+            st.balloons()
+            st.success(f"🎉 **匹配成功！**\n\n分配给 **{player_name}** 的账号是：\n# 【{result['xinfa']}】 {result['account']}")
         else:
-            # === 核心算法 ===
-            valid_candidates = []
-            
-            for xf in all_xinfas:
-                xf_name = xf['n']
-                
-                # 1. 如果被排除了，跳过
-                if xf_name in excluded_options:
-                    continue
-                
-                # 2. 如果开启了只抽有号模式
-                if only_account_mode:
-                    accounts = ACCOUNT_POOL.get(xf_name, [])
-                    if not accounts:
-                        continue # 没号跳过
-                
-                valid_candidates.append(xf_name)
-            
-            # === 结果判断 ===
-            if not valid_candidates:
-                st.error("没有符合条件的心法！(可能是全都排除了，或者号池里没有剩余可选的)")
-            else:
-                # 动画效果
-                with st.spinner('天命轮转中...'):
-                    time.sleep(1) # 假装思考1秒
-                
-                # 抽心法
-                final_xinfa = random.choice(valid_candidates)
-                
-                # 抽账号
-                final_account = ""
-                accounts_in_pool = ACCOUNT_POOL.get(final_xinfa, [])
-                if accounts_in_pool:
-                    final_account = random.choice(accounts_in_pool)
-                
-                # 生成结果文本
-                if final_account:
-                    res_str = f"使用 【{final_xinfa}】\n账号：{final_account}"
-                else:
-                    res_str = f"使用 【{final_xinfa}】\n(需自行找号)"
-                
-                st.session_state.result = {
-                    "id": player_id,
-                    "text": res_str
-                }
+            st.error(result)
 
-    # 5. 显示结果
-    if st.session_state.result:
-        res = st.session_state.result
-        st.markdown(f"""
-        <div class="result-box">
-            📝 判决书<br>
-            侠士 <span class="highlight">{res['id']}</span><br>
-            {res['text'].replace(chr(10), '<br>')}
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("重置"):
-            st.session_state.result = None
-            st.rerun()
+# --- 下方：实时大名单 ---
+st.divider()
+st.subheader("📋 实时大名单 (自动更新)")
+
+if len(game.roster) > 0:
+    # 转换成表格展示
+    df = pd.DataFrame(game.roster)
+    # 美化表格列名
+    df.columns = ["玩家ID", "职责", "心法", "分配账号", "抽签时间"]
+    
+    # 按职责排序：T -> N -> DPS
+    role_order = {"T": 0, "N": 1, "DPS": 2}
+    df['order'] = df['职责'].map(role_order)
+    df = df.sort_values('order').drop('order', axis=1)
+    
+    st.dataframe(
+        df, 
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "职责": st.column_config.TextColumn(
+                "职责",
+                help="T=坦克, N=治疗, DPS=输出",
+                validate="^(T|N|DPS)$"
+            )
+        }
+    )
+else:
+    st.info("暂无数据，快来抢首杀！")
