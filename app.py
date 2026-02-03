@@ -151,8 +151,8 @@ game = GameState()
 
 # ================= 2. 界面显示 =================
 
-st.title("😈 25人本 · 痛苦号发号机")
-st.caption("规则：勾选你会玩的心法，系统会**避开**它们，给你分配一个你不会的！")
+st.title("😈 2卷卷 · 换号普通发号机")
+st.caption("规则：勾选你会玩的心法，系统会**避开**它们！")
 
 # --- 侧边栏：实时监控 ---
 with st.sidebar:
@@ -202,7 +202,7 @@ if draw_btn:
         success, result = game.draw_character(player_name, selected_skills)
         if success:
             st.balloons()
-            st.success(f"🎉 **匹配成功！你的痛苦号是：**\n\n### 【{result['xinfa']}】 {result['account']}\n\n加油！别翻车！")
+            st.success(f"🎉 **匹配成功！你将使用的号是：**\n\n### 【{result['xinfa']}】 {result['account']}\n\n加油！别翻车！")
         else:
             st.error(result)
 
@@ -214,7 +214,7 @@ if len(game.roster) > 0:
     # 转换成表格展示
     df = pd.DataFrame(game.roster)
     # 美化表格列名
-    df.columns = ["玩家ID", "分配职责", "痛苦心法", "账号", "抽签时间"]
+    df.columns = ["玩家ID", "分配职责", "心法", "账号", "抽签时间"]
     
     # 按职责排序：T -> N -> DPS
     role_order = {"T": 0, "N": 1, "DPS": 2}
@@ -234,4 +234,4 @@ if len(game.roster) > 0:
         }
     )
 else:
-    st.info("暂无数据，快来抢首杀！")
+    st.info("暂无数据！")
